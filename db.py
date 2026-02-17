@@ -89,7 +89,7 @@ async def day_summary(p, tg_id: int, d: date):
         """, user["id"], d)
         pos, neg = int(q["pos"]), int(q["neg"])
         return pos, neg, index_from(pos, neg)
-      async def week_summary(p, tg_id: int, end: date | None = None):
+async def week_summary(p, tg_id: int, end: date | None = None):
     """
     Returns: (d1, d2, pos, neg, avg_index)
     d1..d2 inclusive range (7 days)
@@ -134,7 +134,7 @@ async def day_summary(p, tg_id: int, d: date):
         avg = round(total_index / 7)
 
         return start, end, pos, neg, avg
-      async def month_summary(p, tg_id: int, end: date | None = None, days: int = 30):
+async def month_summary(p, tg_id: int, end: date | None = None, days: int = 30):
     if end is None:
         end = date.today()
     start = end - timedelta(days=days - 1)
