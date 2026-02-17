@@ -210,3 +210,36 @@ async def main():
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
+    
+def settings_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🇺🇦 Українська", callback_data="set_lang:ua"),
+         InlineKeyboardButton(text="🇬🇧 English", callback_data="set_lang:en")],
+        [InlineKeyboardButton(text="⚖️ Neutral values", callback_data="set_trad:neutral_values"),
+         InlineKeyboardButton(text="☦️ Orthodox", callback_data="set_trad:orthodox")],
+        [InlineKeyboardButton(text="🕒 TZ +02:00", callback_data="set_tz:+02:00"),
+         InlineKeyboardButton(text="🕒 TZ +01:00", callback_data="set_tz:+01:00")],
+    ])
+
+@dp.message(F.text == "⚙️ Налаштування")
+async def settings(m):
+    await DB.ensure_user(pool, m.from_user.id)
+    await m.answer("Налаштування:", reply_markup=settings_kb())
+
+@dp.callback_query(F.data.startswith("set_lang:"))
+async def cb_set_lang(c):
+    lang = c.data.split(":", 1)[1]
+    await DB.set_lang(pool, c.from_user.id, lang)
+    await c.answer("Мову збережено ✅", show_alert=False)
+
+@dp.callback_query(F.data.startswith("set_trad:"))
+async def cb_set_trad(c):
+    trad = c.data.split(":", 1)[1]
+    await DB.set_tradition(pool, c.from_user.id, trad)
+    await c.answer("Традицію збережено ✅", show_alert=False)
+
+@dp.callback_query(F.data.startswith("set_tz:"))
+async def cb_set_tz(c):
+    tz = c.data.split(":", 1)[1]
+    await DB.set_tz_offset(pool, c.from_user.id, tz)
+    await c.answer("Часовий пояс збережено ✅", show_alert=False)
