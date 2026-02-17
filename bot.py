@@ -80,8 +80,8 @@ def kb_thought_polarity(lang: str, item_key: str, w: int):
     return kb.as_markup()
 
 def chart_png(series, path):
-    xs = [d for d,_ in series]
-    ys = [v for _,v in series]
+    xs = [row[0] for row in series]
+    ys = [row[1] for row in series]
     plt.figure()
     plt.plot(xs, ys, marker="o")
     plt.xticks(rotation=45, ha="right")
