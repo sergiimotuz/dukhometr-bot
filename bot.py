@@ -184,7 +184,7 @@ async def chart(m):
 async def chart(c: CallbackQuery):
     u = await DB.get_user(pool, c.from_user.id)
     lang = u["lang"]
-    series = await DB.series_14d(pool, c.from_user.id, 13)
+    series = await DB.series_last_days(pool, c.from_user.id, days=14)
     path = f"chart_{c.from_user.id}.png"
     chart_png(series, path)
     await c.message.answer_photo(photo=open(path, "rb"),
