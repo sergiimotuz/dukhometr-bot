@@ -176,3 +176,55 @@ async def month_summary(p, tg_id: int, end: date | None = None, days: int = 30):
         avg = round(total_index / days)
 
         return start, end, pos, neg, avg
+async def series_last_days(p, tg_id: int, days: int = 14, end: date | None = None):
+    """
+    Для графіка.
+    Повертає список: [(date, index, pos, neg), ...] довжина = days
+    """
+    if end is None:
+        end = date.today()
+    start = end - timedelta(days=days - 1)
+
+    out = []
+    for i in range(days):
+        d = start + timedelta(days=i)
+        pos, neg, idx = await day_summary(p, tg_id, d)
+        out.append((d, idx, pos, neg))
+    return out
+async def set_tz_offset(p, tg_id: int, tz_offset: str):
+    async with p.acquire() as con:
+        await con.execute("UPDATE users SET tz_offset=$1 WHERE tg_id=$2", tz_offset, tg_id)
+
+async def week_summary(p, tg_id: int, end: date | None = None):
+    if end is None:
+        end = date.today()
+    start = end - timedelta(days=6)
+
+    async with p.acquire() as con:
+        user = await con.fetchrow("SELECT id FROM users WHERE tg_id=$1", tg_id)
+        if not user:
+            raise RuntimeError("User not found")
+
+        q = await con.fetchrow("""
+            SELECT
+              COALESCE(SUM(CASE WHEN polarity=1 THEN weight ELSE 0 END),0) AS pos,
+              COALESCE(SUM(CASE WHEN polarity=-1 THEN weight ELSE 0 END),0) AS neg
+            FROM events
+            WHERE user_id=$1 AND happened_on BETWEEN $2 AND $3
+        """, user["id"], start, end)
+
+        pos, neg = int(q["pos"]), int(q["neg"])
+        avg = index_from(pos, neg)
+        return start, end, pos, neg, avg
+
+async def series_last_days(p, tg_id: int, days: int = 14, end: date | None = None):
+    if end is None:
+        end = date.today()
+    start = end - timedelta(days=days - 1)
+
+    points = []
+    for i in range(days):
+        d = start + timedelta(days=i)
+        pos, neg, idx = await day_summary(p, tg_id, d)
+        points.append((d, idx, pos, neg))
+    return points
