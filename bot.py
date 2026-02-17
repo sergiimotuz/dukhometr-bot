@@ -12,6 +12,12 @@ import db as DB
 from i18n import t
 from catalog import TRADITIONS, SINS, GOODS, THOUGHTS
 
+from aiogram import F
+from aiogram.types import BufferedInputFile, InlineKeyboardMarkup, InlineKeyboardButton
+from io import BytesIO
+import matplotlib.pyplot as plt
+from datetime import date
+
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -150,6 +156,29 @@ async def week(c: CallbackQuery):
     await c.message.answer(t(lang, "week_summary", d1=d1, d2=d2, pos=pos, neg=neg, avg=avg),
                            reply_markup=kb_main(lang))
     await c.answer()
+    
+@dp.message(F.text == "📈 Графік")
+async def chart(m):
+    await DB.ensure_user(pool, m.from_user.id)
+
+    series = await DB.series_last_days(pool, m.from_user.id, days=14)
+    xs = [d.strftime("%d.%m") for (d, idx, pos, neg) in series]
+    ys = [idx for (d, idx, pos, neg) in series]
+
+    fig = plt.figure()
+    plt.plot(xs, ys)
+    plt.ylim(0, 100)
+    plt.title("Духовний індекс за 14 днів")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+
+    buf = BytesIO()
+    fig.savefig(buf, format="png")
+    plt.close(fig)
+    buf.seek(0)
+
+    await m.answer_photo(BufferedInputFile(buf.read(), filename="chart.png"),
+                         caption="Ось твій графік за 14 днів (0–100).")
 
 @dp.callback_query(F.data == "chart")
 async def chart(c: CallbackQuery):
