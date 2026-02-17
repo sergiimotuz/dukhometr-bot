@@ -89,3 +89,91 @@ async def day_summary(p, tg_id: int, d: date):
         """, user["id"], d)
         pos, neg = int(q["pos"]), int(q["neg"])
         return pos, neg, index_from(pos, neg)
+      async def week_summary(p, tg_id: int, end: date | None = None):
+    """
+    Returns: (d1, d2, pos, neg, avg_index)
+    d1..d2 inclusive range (7 days)
+    avg_index is average of daily index (0..100) for 7 days
+    """
+    if end is None:
+        end = date.today()
+    start = end - timedelta(days=6)
+
+    async with p.acquire() as con:
+        user = await con.fetchrow("SELECT id FROM users WHERE tg_id=$1", tg_id)
+        if not user:
+            raise RuntimeError("User not found")
+        uid = user["id"]
+
+        q = await con.fetchrow("""
+            SELECT
+              COALESCE(SUM(CASE WHEN polarity=1 THEN weight ELSE 0 END),0) AS pos,
+              COALESCE(SUM(CASE WHEN polarity=-1 THEN weight ELSE 0 END),0) AS neg
+            FROM events
+            WHERE user_id=$1 AND happened_on BETWEEN $2 AND $3
+        """, uid, start, end)
+        pos, neg = int(q["pos"]), int(q["neg"])
+
+        # Average of daily index across 7 days (more "stable" than index_from(total_pos,total_neg))
+        daily_rows = await con.fetch("""
+            SELECT
+              happened_on,
+              COALESCE(SUM(CASE WHEN polarity=1 THEN weight ELSE 0 END),0) AS pos,
+              COALESCE(SUM(CASE WHEN polarity=-1 THEN weight ELSE 0 END),0) AS neg
+            FROM events
+            WHERE user_id=$1 AND happened_on BETWEEN $2 AND $3
+            GROUP BY happened_on
+        """, uid, start, end)
+
+        per_day = {r["happened_on"]: (int(r["pos"]), int(r["neg"])) for r in daily_rows}
+        total_index = 0
+        for i in range(7):
+            d = start + timedelta(days=i)
+            ppos, pneg = per_day.get(d, (0, 0))
+            total_index += index_from(ppos, pneg)
+        avg = round(total_index / 7)
+
+        return start, end, pos, neg, avg
+      async def month_summary(p, tg_id: int, end: date | None = None, days: int = 30):
+    if end is None:
+        end = date.today()
+    start = end - timedelta(days=days - 1)
+
+    async with p.acquire() as con:
+        user = await con.fetchrow("SELECT id FROM users WHERE tg_id=$1", tg_id)
+        if not user:
+            raise RuntimeError("User not found")
+        uid = user["id"]
+
+        q = await con.fetchrow("""
+            SELECT
+              COALESCE(SUM(CASE WHEN polarity=1 THEN weight ELSE 0 END),0) AS pos,
+              COALESCE(SUM(CASE WHEN polarity=-1 THEN weight ELSE 0 END),0) AS neg
+            FROM events
+            WHERE user_id=$1 AND happened_on BETWEEN $2 AND $3
+        """, uid, start, end)
+        pos, neg = int(q["pos"]), int(q["neg"])
+
+        daily_rows = await con.fetch("""
+            SELECT
+              happened_on,
+              COALESCE(SUM(CASE WHEN polarity=1 THEN weight ELSE 0 END),0) AS pos,
+              COALESCE(SUM(CASE WHEN polarity=-1 THEN weight ELSE 0 END),0) AS neg
+            FROM events
+            WHERE user_id=$1 AND happened_on BETWEEN $2 AND $3
+            GROUP BY happened_on
+        """, uid, start, end)
+
+        per_day = {r["happened_on"]: (int(r["pos"]), int(r["neg"])) for r in daily_rows}
+        total_index = 0
+        for i in range(days):
+            d = start + timedelta(days=i)
+            ppos, pneg = per_day.get(d, (0, 0))
+            total_index += index_from(ppos, pneg)
+        avg = round(total_index / days)
+
+        return start, end, pos, neg, avg
+      async def set_tz_offset(p, tg_id: int, tz_offset: str):
+    async with p.acquire() as con:
+        await con.execute("UPDATE users SET tz_offset=$1 WHERE tg_id=$2", tz_offset, tg_id)
+      
